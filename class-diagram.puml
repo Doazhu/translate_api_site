@@ -1,0 +1,164 @@
+@startuml
+
+' Классы Frontend
+package "Frontend (Browser)" {
+    class WebInterface {
+        - currentUser: User
+        - authToken: string
+        + renderLoginForm()
+        + renderTranslationForm()
+        + renderHistory()
+        + showNotification(message: string)
+    }
+    
+    class TranslationForm {
+        - sourceText: string
+        - sourceLang: string
+        - targetLang: string
+        + validate(): boolean
+        + submit(): Promise
+        + clearForm()
+    }
+    
+    class APIClient {
+        - baseURL: string
+        - authToken: string
+        + translate(data: TranslationRequest): Promise
+        + getHistory(page: int): Promise
+        + login(credentials: LoginData): Promise
+        + register(userData: RegisterData): Promise
+    }
+}
+
+' Классы Backend
+package "Backend (FastAPI)" {
+    class AuthController {
+        + register(userData: RegisterData): Response
+        + login(credentials: LoginData): Response
+        + logout(token: string): Response
+        + verifyToken(token: string): User
+    }
+    
+    class TranslationController {
+        + translate(request: TranslationRequest): Response
+        + getHistory(userId: int, page: int): Response
+        + getTranslationById(id: int): Response
+        + deleteTranslation(id: int): Response
+    }
+    
+    class FavoritesController {
+        + addToFavorites(translationId: int): Response
+        + removeFromFavorites(translationId: int): Response
+        + getFavorites(userId: int): Response
+    }
+    
+    class DeepLService {
+        - apiKey: string
+        - apiURL: string
+        + translate(text: string, sourceLang: string, targetLang: string): TranslationResult
+        + getAvailableLanguages(): Language[]
+        + checkApiStatus(): boolean
+    }
+    
+    class DatabaseService {
+        - connection: SQLiteConnection
+        + createUser(userData: UserData): User
+        + getUserById(id: int): User
+        + getUserByEmail(email: string): User
+        + saveTranslation(translation: Translation): int
+        + getTranslations(userId: int, limit: int, offset: int): Translation[]
+        + updateFavoriteStatus(translationId: int, status: boolean): boolean
+    }
+    
+    class JWTManager {
+        - secretKey: string
+        - algorithm: string
+        + generateToken(userId: int): string
+        + verifyToken(token: string): TokenPayload
+        + decodeToken(token: string): dict
+    }
+}
+
+' Модели данных
+package "Models" {
+    class User {
+        + id: int
+        + email: string
+        + passwordHash: string
+        + name: string
+        + createdAt: datetime
+        + lastLogin: datetime
+    }
+    
+    class Translation {
+        + id: int
+        + userId: int
+        + sourceText: string
+        + translatedText: string
+        + sourceLang: string
+        + targetLang: string
+        + isFavorite: boolean
+        + createdAt: datetime
+    }
+    
+    class TranslationRequest {
+        + text: string
+        + sourceLang: string
+        + targetLang: string
+        + userId: int
+    }
+    
+    class TranslationResult {
+        + translatedText: string
+        + detectedLanguage: string
+        + translationId: int
+    }
+    
+    class LoginData {
+        + email: string
+        + password: string
+    }
+    
+    class RegisterData {
+        + email: string
+        + password: string
+        + name: string
+    }
+    
+    class Language {
+        + code: string
+        + name: string
+    }
+}
+
+' Связи между классами
+
+' Frontend
+WebInterface --> TranslationForm
+WebInterface --> APIClient
+TranslationForm --> APIClient
+
+' Backend Controllers
+APIClient ..> AuthController : HTTP
+APIClient ..> TranslationController : HTTP
+APIClient ..> FavoritesController : HTTP
+
+AuthController --> DatabaseService
+AuthController --> JWTManager
+TranslationController --> DatabaseService
+TranslationController --> DeepLService
+FavoritesController --> DatabaseService
+
+' Модели
+AuthController ..> User
+AuthController ..> LoginData
+AuthController ..> RegisterData
+TranslationController ..> Translation
+TranslationController ..> TranslationRequest
+TranslationController ..> TranslationResult
+DeepLService ..> TranslationResult
+DeepLService ..> Language
+DatabaseService ..> User
+DatabaseService ..> Translation
+
+@enduml

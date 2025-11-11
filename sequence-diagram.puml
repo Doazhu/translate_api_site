@@ -1,0 +1,38 @@
+@startuml
+actor Пользователь as User
+participant "Веб-браузер" as Browser
+participant "FastAPI\nСервер" as Backend
+database "SQLite\nБД" as DB
+participant "DeepL\nAPI" as DeepL
+
+User -> Browser: Вводит текст и выбирает языки
+Browser -> Browser: Валидация формы
+Browser -> Backend: POST /api/translate\n{text, source_lang, target_lang, token}
+
+Backend -> Backend: Проверка JWT токена
+Backend -> DB: SELECT user_id FROM users\nWHERE token = ?
+DB --> Backend: user_id
+
+alt Токен невалиден
+    Backend --> Browser: 401 Unauthorized
+    Browser --> User: Ошибка авторизации
+else Токен валиден
+    Backend -> DeepL: POST /v2/translate\n{text, source_lang, target_lang, auth_key}
+    
+    alt DeepL API успешно
+        DeepL --> Backend: {translated_text, detected_lang}
+        
+        Backend -> DB: INSERT INTO translations\n(user_id, source_text, translated_text,\nsource_lang, target_lang, timestamp)
+        DB --> Backend: translation_id
+        
+        Backend --> Browser: 200 OK\n{translated_text, translation_id}
+        Browser --> User: Отображает перевод
+        
+    else DeepL API ошибка
+        DeepL --> Backend: 4xx/5xx Error
+        Backend --> Browser: 503 Service Unavailable\n{error: "Translation service error"}
+        Browser --> User: Ошибка перевода
+    end
+end
+
+@enduml
